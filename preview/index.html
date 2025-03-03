@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Floppy Duck Preview</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #71C5CF;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            touch-action: manipulation;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 320px;
+            height: 480px;
+            border: 2px solid #444;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+        
+        #instructions {
+            text-align: center;
+            margin: 10px 0;
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        #duck {
+            position: absolute;
+            width: 40px;
+            height: 30px;
+            background-color: yellow;
+            border-radius: 50% 50% 50% 50%;
+            left: 50px;
+            top: 200px;
+            transition: transform 0.1s;
+        }
+        
+        #duck:after {
+            content: '';
+            position: absolute;
+            width: 15px;
+            height: 10px;
+            background-color: orange;
+            right: -5px;
+            top: 10px;
+            border-radius: 50% 50% 50% 50%;
+        }
+        
+        .pipe {
+            position: absolute;
+            width: 50px;
+            background-color: green;
+            right: -50px;
+        }
+        
+        #score {
+            color: white;
+            font-size: 30px;
+            text-align: center;
+            margin-top: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        #ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 20px;
+            background-color: brown;
+        }
+        
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            font-size: 24px;
+            display: none;
+            background-color: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            width: 200px;
+        }
+        
+        #start-button, #restart-button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 0;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        
+        #multiplayer-toggle {
+            margin-top: 10px;
+        }
+        
+        #split-line {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            height: 100%;
+            width: 2px;
+            background-color: white;
+            display: none;
+        }
+        
+        #duck2 {
+            position: absolute;
+            width: 40px;
+            height: 30px;
+            background-color: orange;
+            border-radius: 50% 50% 50% 50%;
+            left: 240px;
+            top: 200px;
+            transition: transform 0.1s;
+            display: none;
+        }
+        
+        #duck2:after {
+            content: '';
+            position: absolute;
+            width: 15px;
+            height: 10px;
+            background-color: red;
+            right: -5px;
+            top: 10px;
+            border-radius: 50% 50% 50% 50%;
+        }
+        
+        #score2 {
+            color: white;
+            font-size: 16px;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Floppy Duck</h1>
+    
+    <div id="multiplayer-toggle">
+        <label style="color: white; font-weight: bold;">
+            <input type="checkbox" id="multiplayer-checkbox"> Split-screen Multiplayer
+        </label>
+    </div>
+    
+    <div id="instructions">Tap/click to flap!</div>
+    
+    <button id="start-button">Start Game</button>
+    
+    <div id="game-container">
+        <div id="duck"></div>
+        <div id="duck2"></div>
+        <div id="split-line"></div>
+        <div id="ground"></div>
+        <div id="score">0</div>
+        <div id="score2">0</div>
+        <div id="game-over">
+            <h2>Game Over</h2>
+            <p id="final-score">Score: 0</p>
+            <button id="restart-button">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        let gameActive = false;
+        let isMultiplayer = false;
+        let gameLoopInterval;
+        let score = 0;
+        let score2 = 0;
+        let duckY = 200;
+        let duck2Y = 200;
+        let velocity = 0;
+        let velocity2 = 0;
+        let gravity = 0.5;
+        let pipes = [];
+        let pipeSpeed = 2;
+        let pipeSpawnRate = 1500; // ms
+        let lastPipeSpawn = 0;
+        
+        // DOM elements
+        const duck = document.getElementById('duck');
+        const duck2 = document.getElementById('duck2');
+        const gameContainer = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score');
+        const score2Display = document.getElementById('score2');
+        const gameOverDisplay = document.getElementById('game-over');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const multiplayerCheckbox = document.getElementById('multiplayer-checkbox');
+        const splitLine = document.getElementById('split-line');
+        
+        // Handle start button click
+        startButton.addEventListener('click', startGame);
+        
+        // Handle restart button click
+        restartButton.addEventListener('click', () => {
+            gameOverDisplay.style.display = 'none';
+            startGame();
+        });
+        
+        // Handle multiplayer toggle
+        multiplayerCheckbox.addEventListener('change', () => {
+            isMultiplayer = multiplayerCheckbox.checked;
+            duck2.style.display = isMultiplayer ? 'block' : 'none';
+            splitLine.style.display = isMultiplayer ? 'block' : 'none';
+            score2Display.style.display = isMultiplayer ? 'block' : 'none';
+        });
+        
+        // Handle flap (click/tap)
+        gameContainer.addEventListener('click', (e) => {
+            if (!gameActive) return;
+            
+            const clickX = e.clientX - gameContainer.getBoundingClientRect().left;
+            
+            if (isMultiplayer) {
+                // Left side controls duck1, right side controls duck2
+                if (clickX < gameContainer.offsetWidth / 2) {
+                    velocity = -8; // flap upward
+                } else {
+                    velocity2 = -8; // flap upward
+                }
+            } else {
+                velocity = -8; // flap upward
+            }
+        });
+        
+        // For mobile touch
+        gameContainer.addEventListener('touchstart', (e) => {
+            if (!gameActive) return;
+            e.preventDefault();
+            
+            const touch = e.touches[0];
+            const touchX = touch.clientX - gameContainer.getBoundingClientRect().left;
+            
+            if (isMultiplayer) {
+                // Left side controls duck1, right side controls duck2
+                if (touchX < gameContainer.offsetWidth / 2) {
+                    velocity = -8; // flap upward
+                } else {
+                    velocity2 = -8; // flap upward
+                }
+            } else {
+                velocity = -8; // flap upward
+            }
+        }, { passive: false });
+        
+        // Start the game
+        function startGame() {
+            // Reset game state
+            gameActive = true;
+            score = 0;
+            score2 = 0;
+            duckY = 200;
+            duck2Y = 200;
+            velocity = 0;
+            velocity2 = 0;
+            pipes = [];
+            lastPipeSpawn = Date.now();
+            
+            // Update display
+            scoreDisplay.textContent = '0';
+            score2Display.textContent = '0';
+            startButton.style.display = 'none';
+            
+            // Clear previous game loop
+            clearInterval(gameLoopInterval);
+            
+            // Remove any existing pipes
+            document.querySelectorAll('.pipe').forEach(pipe => pipe.remove());
+            
+            // Start game loop
+            gameLoopInterval = setInterval(updateGame, 20);
+        }
+        
+        // Game loop
+        function updateGame() {
+            if (!gameActive) return;
+            
+            // Apply gravity to both ducks
+            velocity += gravity;
+            duckY += velocity;
+            duck.style.top = duckY + 'px';
+            duck.style.transform = `rotate(${velocity * 3}deg)`;
+            
+            if (isMultiplayer) {
+                velocity2 += gravity;
+                duck2Y += velocity2;
+                duck2.style.top = duck2Y + 'px';
+                duck2.style.transform = `rotate(${velocity2 * 3}deg)`;
+            }
+            
+            // Check for collisions with ground
+            if (duckY > gameContainer.offsetHeight - 50) {
+                if (isMultiplayer) {
+                    velocity = 0;
+                    duckY = gameContainer.offsetHeight - 50;
+                    
+                    if (duck2Y > gameContainer.offsetHeight - 50) {
+                        endGame();
+                    }
+                } else {
+                    endGame();
+                }
+            }
+            
+            if (isMultiplayer && duck2Y > gameContainer.offsetHeight - 50) {
+                velocity2 = 0;
+                duck2Y = gameContainer.offsetHeight - 50;
+                
+                if (duckY > gameContainer.offsetHeight - 50) {
+                    endGame();
+                }
+            }
+            
+            // Spawn new pipes
+            if (Date.now() - lastPipeSpawn > pipeSpawnRate) {
+                spawnPipe();
+                lastPipeSpawn = Date.now();
+            }
+            
+            // Move pipes and check collisions
+            const containerWidth = gameContainer.offsetWidth;
+            const pipeWidth = 50;
+            const duckWidth = 40;
+            const duckHeight = 30;
+            
+            document.querySelectorAll('.pipe').forEach(pipe => {
+                const pipeLeft = parseInt(pipe.style.left) || containerWidth;
+                const newLeft = pipeLeft - pipeSpeed;
+                pipe.style.left = newLeft + 'px';
+                
+                // Check if pipe is off screen
+                if (newLeft < -pipeWidth) {
+                    pipe.remove();
+                }
+                
+                // Check if duck has passed pipe (score point)
+                if (newLeft === 50 - pipeWidth) {
+                    score++;
+                    scoreDisplay.textContent = score;
+                    
+                    if (isMultiplayer) {
+                        score2++;
+                        score2Display.textContent = score2;
+                    }
+                }
+                
+                // Check for collision with pipe
+                if (
+                    newLeft < 50 + duckWidth &&
+                    newLeft + pipeWidth > 50 &&
+                    (
+                        duckY < parseInt(pipe.style.height) ||
+                        duckY + duckHeight > parseInt(pipe.style.height) + 100
+                    )
+                ) {
+                    if (isMultiplayer) {
+                        // In multiplayer, only game over when both ducks crash
+                        velocity = 0;
+                        
+                        if (
+                            newLeft < 240 + duckWidth &&
+                            newLeft + pipeWidth > 240 &&
+                            (
+                                duck2Y < parseInt(pipe.style.height) ||
+                                duck2Y + duckHeight > parseInt(pipe.style.height) + 100
+                            )
+                        ) {
+                            endGame();
+                        }
+                    } else {
+                        endGame();
+                    }
+                }
+                
+                if (isMultiplayer) {
+                    if (
+                        newLeft < 240 + duckWidth &&
+                        newLeft + pipeWidth > 240 &&
+                        (
+                            duck2Y < parseInt(pipe.style.height) ||
+                            duck2Y + duckHeight > parseInt(pipe.style.height) + 100
+                        )
+                    ) {
+                        velocity2 = 0;
+                        
+                        if (
+                            newLeft < 50 + duckWidth &&
+                            newLeft + pipeWidth > 50 &&
+                            (
+                                duckY < parseInt(pipe.style.height) ||
+                                duckY + duckHeight > parseInt(pipe.style.height) + 100
+                            )
+                        ) {
+                            endGame();
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Spawn a new pipe
+        function spawnPipe() {
+            const pipeHeight = 100 + Math.floor(Math.random() * 200);
+            const gap = 100;
+            
+            // Top pipe
+            const topPipe = document.createElement('div');
+            topPipe.className = 'pipe';
+            topPipe.style.top = '0';
+            topPipe.style.height = pipeHeight + 'px';
+            topPipe.style.left = gameContainer.offsetWidth + 'px';
+            gameContainer.appendChild(topPipe);
+            
+            // Bottom pipe
+            const bottomPipe = document.createElement('div');
+            bottomPipe.className = 'pipe';
+            bottomPipe.style.bottom = '0';
+            bottomPipe.style.top = (pipeHeight + gap) + 'px';
+            bottomPipe.style.height = (gameContainer.offsetHeight - pipeHeight - gap) + 'px';
+            bottomPipe.style.left = gameContainer.offsetWidth + 'px';
+            gameContainer.appendChild(bottomPipe);
+        }
+        
+        // End the game
+        function endGame() {
+            gameActive = false;
+            clearInterval(gameLoopInterval);
+            
+            if (isMultiplayer) {
+                let resultText = '';
+                if (score > score2) {
+                    resultText = 'Player 1 wins!';
+                } else if (score2 > score) {
+                    resultText = 'Player 2 wins!';
+                } else {
+                    resultText = "It's a tie!";
+                }
+                
+                finalScoreDisplay.textContent = `Player 1: ${score} | Player 2: ${score2}`;
+                document.querySelector('#game-over h2').textContent = resultText;
+            } else {
+                finalScoreDisplay.textContent = `Score: ${score}`;
+                document.querySelector('#game-over h2').textContent = 'Game Over';
+            }
+            
+            gameOverDisplay.style.display = 'block';
+        }
+    </script>
+</body>
+</html> 
